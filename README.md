@@ -10,7 +10,7 @@ The project is deliberately split into two layers:
 
 | Layer | Modules | Dependencies | Tested by |
 |-------|---------|--------------|-----------|
-| **Pure decision engine** | `models`, `actions`, `config`, `config_store`, `incident_store`, `state`, `engine`, `executor` | standard library only | 115 unit/simulation tests |
+| **Pure decision engine** | `models`, `actions`, `config`, `config_store`, `incident_store`, `state`, `engine`, `executor` | standard library only | 118 unit/simulation tests |
 | **Discord adapter** | `bot`, `run` | `discord.py` | adapter safety tests + manual run |
 
 The engine **never** touches the network or reads the clock — every decision is
@@ -35,11 +35,12 @@ tested offline, with no bot token and no live server.
 | **Invite/link spam** | repeated invite/URL posts | Delete + escalating response¹ |
 
 ¹ Spam responses **escalate** per offender (within `escalation_window`):
-**warn → channel slowmode → timeout → quarantine** (`escalating_spam`, default on).
-The message is always deleted; the channel's slowmode **auto-clears** once spam
-subsides (`slowmode_cooldown`). Set `escalating_spam=false` to use a flat
-`spam_response` of `slowmode` (default) or `timeout` instead. Note Discord
-slowmode is per-*channel*, so it briefly rate-limits everyone in the channel.
+**warn (×2 by default) → channel slowmode → timeout → quarantine**
+(`escalating_spam`, default on; warning count = `spam_warnings`). The message is
+always deleted; the channel's slowmode **auto-clears** once spam subsides
+(`slowmode_cooldown`). Set `escalating_spam=false` to use a flat `spam_response`
+of `slowmode` (default) or `timeout` instead. Note Discord slowmode is
+per-*channel*, so it briefly rate-limits everyone in the channel.
 
 ² `raid_action` defaults to **`quarantine`** (strip to a locked role — gentle,
 reversible). Use `!ar set raid_action ban` (or `kick`/`alert`) to change it.
@@ -143,6 +144,7 @@ raid_cooldown_seconds                       auto-lift delay
 msg_rate_threshold / msg_rate_window        flood
 duplicate_threshold / cross_user_threshold  copy-paste / coordinated spam
 escalating_spam / escalation_window         warn->slowmode->timeout->quarantine ladder
+spam_warnings                               warnings before escalation (default 2)
 spam_response / slowmode_seconds            flat response (when not escalating)
 slowmode_cooldown                           auto-clear channel slowmode after quiet
 mention_threshold / mention_window_threshold mention spam
@@ -162,7 +164,7 @@ python -m coverage run --source=antiraid -m unittest discover -s tests
 python -m coverage report -m
 ```
 
-115 tests cover join detection (incl. homoglyph/leet username folding), the
+118 tests cover join detection (incl. homoglyph/leet username folding), the
 AutoMod-style username filter, message spam, the warn→slowmode→timeout→
 quarantine escalation ladder, anti-nuke, lifecycle, config & incident
 persistence (incl. lockdown restore across restarts), bulk-ban coalescing, the

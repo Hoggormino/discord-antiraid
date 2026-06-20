@@ -392,19 +392,22 @@ class AntiRaidEngine:
         escalation, every trigger gets the flat spam_response. Discord slowmode
         is per-channel, so it rate-limits the spammed channel, not one member.
         """
-        if cfg.escalating_spam:
-            offenses = state.user_offenses[uid]
-            offenses.append((event.timestamp,))
-            _prune_left(offenses, event.timestamp - cfg.escalation_window)
-            step = min(len(offenses), 4)
-        else:
-            step = 2 if cfg.spam_response == SpamResponse.SLOWMODE else 3
+        if not cfg.escalating_spam:
+            if cfg.spam_response == SpamResponse.SLOWMODE:
+                return self._slowmode_action(cfg, state, event, uid, reason)
+            return self._timeout_action(cfg, event, uid, reason)
 
-        if step == 1:
+        offenses = state.user_offenses[uid]
+        offenses.append((event.timestamp,))
+        _prune_left(offenses, event.timestamp - cfg.escalation_window)
+        n = len(offenses)
+        warnings = cfg.spam_warnings
+        # ladder: <=warnings warn(s) -> slowmode -> timeout -> quarantine
+        if n <= warnings:
             return self._warn_action(event, uid, reason)
-        if step == 2:
+        if n == warnings + 1:
             return self._slowmode_action(cfg, state, event, uid, reason)
-        if step == 3:
+        if n == warnings + 2:
             return self._timeout_action(cfg, event, uid, reason)
         return self._quarantine_action(event, uid, reason)
 

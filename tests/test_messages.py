@@ -16,9 +16,10 @@ def engine(**overrides) -> AntiRaidEngine:
 
 class TestEscalation(unittest.TestCase):
     def test_ladder_warn_slowmode_timeout_quarantine(self):
-        # Each message past the flood threshold is another offense, climbing
+        # With one warning, each message past the flood threshold climbs:
         # warn -> slowmode -> timeout -> quarantine.
-        eng = engine(msg_rate_threshold=3, msg_rate_window=30, escalation_window=300)
+        eng = engine(msg_rate_threshold=3, msg_rate_window=30, escalation_window=300,
+                     spam_warnings=1)
         m = u.member(1)
         seq = [eng.process_message(u.message(m, f"spam {i}", u.NOW + i, mid=i))
                for i in range(6)]
@@ -30,6 +31,17 @@ class TestEscalation(unittest.TestCase):
         self.assertTrue(u.has(seq[5], ActionType.QUARANTINE_MEMBER))  # offense 4
         for s in seq[2:]:  # every triggered message is also deleted
             self.assertTrue(u.has(s, ActionType.DELETE_MESSAGE))
+
+    def test_two_warnings_before_action_by_default(self):
+        # Default spam_warnings=2: two warnings before any slowmode.
+        eng = engine(msg_rate_threshold=3, msg_rate_window=30, escalation_window=300)
+        m = u.member(1)
+        seq = [eng.process_message(u.message(m, f"spam {i}", u.NOW + i, mid=i))
+               for i in range(5)]
+        self.assertTrue(u.has(seq[2], ActionType.WARN_MEMBER))   # offense 1
+        self.assertTrue(u.has(seq[3], ActionType.WARN_MEMBER))   # offense 2
+        self.assertTrue(u.has(seq[4], ActionType.SET_SLOWMODE))  # offense 3
+        self.assertFalse(u.has(seq[3], ActionType.SET_SLOWMODE))
 
     def test_flat_slowmode_mode(self):
         eng = engine(msg_rate_threshold=3, escalating_spam=False,

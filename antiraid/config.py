@@ -79,6 +79,8 @@ class GuildConfig:
     #: trigger gets the flat spam_response below.
     escalating_spam: bool = True
     escalation_window: float = 300.0
+    #: warnings given before escalation begins (0 = skip straight to slowmode).
+    spam_warnings: int = 2
     #: flat response when escalating_spam is False.
     spam_response: SpamResponse = SpamResponse.SLOWMODE
     #: channel slowmode (seconds) applied for the slowmode response.

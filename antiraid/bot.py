@@ -449,8 +449,8 @@ class AntiRaidBot(commands.AutoShardedBot):
             return
         try:
             await channel.send(
-                f"⚠️ <@{action.target_id}> please stop — automated spam warning. "
-                "Repeated spam will be actioned automatically.",
+                f"👋 Hey <@{action.target_id}>, please ease up on the messages — "
+                "just an automated heads-up. Keep it chill and you're all good. 🙂",
                 allowed_mentions=discord.AllowedMentions(
                     users=True, everyone=False, roles=False
                 ),
