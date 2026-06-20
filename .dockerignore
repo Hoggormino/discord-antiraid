@@ -1,0 +1,23 @@
+# Keep the image lean and — critically — never copy secrets or local state in.
+.env
+*.log
+guild_configs.json
+incidents.json
+sim_configs.json
+
+.git
+.github
+tests/
+simulate.py
+README.md
+DEPLOY.md
+LICENSE
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/

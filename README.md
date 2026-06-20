@@ -101,6 +101,8 @@ bot with permissions: Ban Members, Kick Members, Moderate Members (timeout),
 Manage Roles, Manage Channels, Manage Server, Read Message History, View Audit
 Log. The bot's own role must sit **above** the roles it needs to action.
 
+To run it 24/7 on a host (Railway / Fly.io / a VPS), see [DEPLOY.md](DEPLOY.md).
+
 ---
 
 ## Admin commands
