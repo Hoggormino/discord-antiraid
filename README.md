@@ -10,7 +10,7 @@ The project is deliberately split into two layers:
 
 | Layer | Modules | Dependencies | Tested by |
 |-------|---------|--------------|-----------|
-| **Pure decision engine** | `models`, `actions`, `config`, `config_store`, `incident_store`, `state`, `engine`, `executor` | standard library only | 112 unit/simulation tests |
+| **Pure decision engine** | `models`, `actions`, `config`, `config_store`, `incident_store`, `state`, `engine`, `executor` | standard library only | 115 unit/simulation tests |
 | **Discord adapter** | `bot`, `run` | `discord.py` | adapter safety tests + manual run |
 
 The engine **never** touches the network or reads the clock — every decision is
@@ -24,20 +24,25 @@ tested offline, with no bot token and no live server.
 
 | Threat | Detection | Default response |
 |--------|-----------|------------------|
-| **Mass-join raid** | N joins inside a sliding window | Lockdown + raise verification + ban/kick raiders (incl. **retroactive** sweep of everyone already in the window) |
+| **Mass-join raid** | N joins inside a sliding window | Lockdown + raise verification + **quarantine** raiders² (incl. **retroactive** sweep of everyone already in the window) |
 | **Scripted/slow raid** | cluster of similar usernames — robust to homoglyphs (`Rаider` w/ Cyrillic), full-width (`Ｒaider`), accents and leetspeak (`R4id3r`) | Same as above — catches raids that stay *under* the join-rate bar |
 | **Throwaway accounts** | account age below threshold | Treated as raiders during a raid; optional gate in peacetime |
 | **Malicious usernames** | AutoMod-style regex filter on join (matches raw name *and* normalised skeleton) | Quarantine/kick/ban on join, no raid required |
-| **Message flood** | per-user message rate | Delete + channel slowmode¹ |
-| **Copy-paste spam** | same content repeated by one user | Delete + channel slowmode¹ |
-| **Coordinated spam wave** | identical message from many users | Lockdown + **retroactive** delete of the whole wave + channel slowmode¹ |
-| **Mention/ping spam** | per-message and cumulative mentions, `@everyone` | Delete + channel slowmode¹ |
-| **Invite/link spam** | repeated invite/URL posts | Delete + channel slowmode¹ |
+| **Message flood** | per-user message rate | Delete + escalating response¹ |
+| **Copy-paste spam** | same content repeated by one user | Delete + escalating response¹ |
+| **Coordinated spam wave** | identical message from many users | Lockdown + **retroactive** delete of the whole wave + escalating response¹ |
+| **Mention/ping spam** | per-message and cumulative mentions, `@everyone` | Delete + escalating response¹ |
+| **Invite/link spam** | repeated invite/URL posts | Delete + escalating response¹ |
 
-¹ Spam response is configurable via `spam_response`: **`slowmode`** (default — delete
-the spam and put the channel in slowmode) or **`timeout`** (delete + time the member
-out). Switch with `!ar set spam_response timeout`. Note Discord slowmode is
-per-*channel*, so it briefly rate-limits everyone in the spammed channel.
+¹ Spam responses **escalate** per offender (within `escalation_window`):
+**warn → channel slowmode → timeout → quarantine** (`escalating_spam`, default on).
+The message is always deleted; the channel's slowmode **auto-clears** once spam
+subsides (`slowmode_cooldown`). Set `escalating_spam=false` to use a flat
+`spam_response` of `slowmode` (default) or `timeout` instead. Note Discord
+slowmode is per-*channel*, so it briefly rate-limits everyone in the channel.
+
+² `raid_action` defaults to **`quarantine`** (strip to a locked role — gentle,
+reversible). Use `!ar set raid_action ban` (or `kick`/`alert`) to change it.
 | **Compromised admin / rogue bot ("nuke")** | one actor doing many destructive audit-log actions | Strip the actor's dangerous roles + critical alert |
 
 After a configurable quiet period, raid mode and lockdown **lift themselves
@@ -132,12 +137,14 @@ JSON. Highlights:
 join_rate_threshold / join_window_seconds   mass-join trigger
 similar_name_threshold                      coordinated-username trigger
 min_account_age_days                        "new account" definition
-raid_action                                 ban | kick | quarantine | alert
+raid_action                                 quarantine (default) | ban | kick | alert
 raid_only_suspicious                        sweep only new/suspicious vs everyone
 raid_cooldown_seconds                       auto-lift delay
 msg_rate_threshold / msg_rate_window        flood
 duplicate_threshold / cross_user_threshold  copy-paste / coordinated spam
-spam_response / slowmode_seconds            slowmode (default) vs timeout response
+escalating_spam / escalation_window         warn->slowmode->timeout->quarantine ladder
+spam_response / slowmode_seconds            flat response (when not escalating)
+slowmode_cooldown                           auto-clear channel slowmode after quiet
 mention_threshold / mention_window_threshold mention spam
 nuke_threshold / nuke_window                anti-nuke sensitivity
 banned_name_patterns / name_filter_action   AutoMod-style username filter
@@ -155,13 +162,14 @@ python -m coverage run --source=antiraid -m unittest discover -s tests
 python -m coverage report -m
 ```
 
-112 tests cover join detection (incl. homoglyph/leet username folding), the
-AutoMod-style username filter, message spam, anti-nuke, lifecycle, config &
-incident persistence (incl. lockdown restore across restarts), bulk-ban
-coalescing, the rate limiter, the adapter's hierarchy guards, **and**
-false-positive scenarios (a busy-but-normal community must never trip
-enforcement). Pure modules sit at 99% line coverage. The adapter tests are
-skipped automatically if `discord.py` is not installed.
+115 tests cover join detection (incl. homoglyph/leet username folding), the
+AutoMod-style username filter, message spam, the warn→slowmode→timeout→
+quarantine escalation ladder, anti-nuke, lifecycle, config & incident
+persistence (incl. lockdown restore across restarts), bulk-ban coalescing, the
+rate limiter, the adapter's hierarchy guards, **and** false-positive scenarios
+(a busy-but-normal community must never trip enforcement). Pure modules sit at
+99% line coverage. The adapter tests are skipped automatically if `discord.py`
+is not installed.
 
 ### End-to-end environment simulation
 

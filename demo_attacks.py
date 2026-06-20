@@ -127,4 +127,22 @@ for i, name in enumerate(suspects):
     print(f"  join: {name!r}")
     show(acts)
 
+
+# ---------------------------------------------------------------------------
+# E) Repeat offender — escalation ladder (warn -> slowmode -> timeout -> quarantine)
+# ---------------------------------------------------------------------------
+from antiraid.models import MessageEvent  # noqa: E402
+
+header("E) Repeat offender — escalation ladder")
+print("  flood trigger = 3 msgs. One member keeps flooding; each offense climbs")
+print("  a rung: warn -> channel slowmode -> timeout -> quarantine.\n")
+eng = engine(msg_rate_threshold=3, msg_rate_window=30, escalation_window=300)
+m = member(6000, "repeatoffender")
+for i in range(6):
+    acts = eng.process_message(
+        MessageEvent(GUILD, 42, m, f"spam wave {i}", BASE + i, i)
+    )
+    print(f"  message #{i + 1}:")
+    show(acts)
+
 print("\nDone.\n")

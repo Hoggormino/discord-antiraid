@@ -64,6 +64,15 @@ class TestPlanActions(unittest.TestCase):
         with self.assertRaises(ValueError):
             plan_actions([ban(1)], max_per_ban_call=0)
 
+    def test_slowmode_deduped_per_channel(self):
+        acts = [Action(ActionType.SET_SLOWMODE, u.GUILD, target_id=42, reason="x")
+                for _ in range(5)]
+        acts.append(Action(ActionType.SET_SLOWMODE, u.GUILD, target_id=99, reason="y"))
+        plan = plan_actions(acts)
+        sm = [a for a in plan.others if a.type is ActionType.SET_SLOWMODE]
+        # the 5 edits to channel 42 collapse to one; channel 99 stays separate
+        self.assertEqual(sorted(a.target_id for a in sm), [42, 99])
+
 
 class TestTokenBucket(unittest.IsolatedAsyncioTestCase):
     def _bucket(self, rate, capacity):

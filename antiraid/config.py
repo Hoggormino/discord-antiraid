@@ -52,7 +52,7 @@ class GuildConfig:
     flag_default_avatar: bool = True
 
     #: what to do with raiders once a raid is active.
-    raid_action: RaidAction = RaidAction.BAN
+    raid_action: RaidAction = RaidAction.QUARANTINE
     #: if True, only *suspicious* joiners are actioned during a raid;
     #: if False, everyone who joined inside the raid window is actioned.
     raid_only_suspicious: bool = True
@@ -74,11 +74,18 @@ class GuildConfig:
     mention_window: float = 15.0
     link_threshold: int = 3               # invite/url messages per user
     link_window: float = 20.0
-    #: how to respond to a detected spammer.
+    #: when True, repeat offenders escalate warn -> slowmode -> timeout ->
+    #: quarantine (counted within escalation_window). When False, every spam
+    #: trigger gets the flat spam_response below.
+    escalating_spam: bool = True
+    escalation_window: float = 300.0
+    #: flat response when escalating_spam is False.
     spam_response: SpamResponse = SpamResponse.SLOWMODE
-    #: channel slowmode (seconds) applied when spam_response == SLOWMODE.
+    #: channel slowmode (seconds) applied for the slowmode response.
     slowmode_seconds: int = 10
-    #: timeout duration (seconds) applied when spam_response == TIMEOUT.
+    #: auto-clear a channel's slowmode after this many quiet seconds.
+    slowmode_cooldown: float = 120.0
+    #: timeout duration (seconds) applied for the timeout response.
     spam_timeout_seconds: float = 600.0
 
     # ---- username filtering (AutoMod-style, acts on the name itself) ---

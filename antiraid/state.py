@@ -55,6 +55,12 @@ class GuildState:
     )
     #: content fingerprints already swept as a coordinated wave (dedup).
     flagged_content: Set[str] = field(default_factory=set)
+    #: per-user spam-offense timestamps, for the escalation ladder.
+    user_offenses: Dict[int, Deque[Tuple[float]]] = field(
+        default_factory=lambda: defaultdict(deque)
+    )
+    #: channel_id -> last spam timestamp, for auto-clearing slowmode.
+    active_slowmodes: Dict[int, float] = field(default_factory=dict)
 
     # ---- anti-nuke -----------------------------------------------------
     actor_audit: Dict[int, Deque[Tuple[float, str]]] = field(
@@ -91,6 +97,7 @@ class GuildState:
         self._prune_dict(self.user_links, now - cfg.link_window)
         self._prune_dict(self.content_authors, now - cfg.cross_user_window)
         self._prune_dict(self.actor_audit, now - cfg.nuke_window)
+        self._prune_dict(self.user_offenses, now - cfg.escalation_window)
         # Forget fingerprints whose wave has fully aged out.
         self.flagged_content &= set(self.content_authors)
         # actioned_members is only meaningful during an active raid; outside one

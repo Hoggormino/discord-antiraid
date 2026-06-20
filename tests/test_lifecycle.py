@@ -53,6 +53,25 @@ class TestLifecycle(unittest.TestCase):
         eng = engine()
         self.assertEqual(eng.tick(u.GUILD, u.NOW + 9999), [])
 
+    def test_slowmode_auto_clears_after_cooldown(self):
+        from antiraid.config import SpamResponse
+        eng = engine(msg_rate_threshold=3, escalating_spam=False,
+                     spam_response=SpamResponse.SLOWMODE, slowmode_cooldown=120)
+        m = u.member(1)
+        for i in range(3):  # flood -> channel 42 put in slowmode
+            eng.process_message(u.message(m, f"hi {i}", u.NOW + i, mid=i))
+        st = eng.store.get(u.GUILD)
+        self.assertIn(42, st.active_slowmodes)
+        # before cooldown: nothing cleared
+        early = eng.tick(u.GUILD, u.NOW + 60)
+        self.assertFalse(u.has(early, ActionType.SET_SLOWMODE))
+        # after cooldown: emit a SET_SLOWMODE(0) clear and forget the channel
+        late = eng.tick(u.GUILD, u.NOW + 200)
+        clears = [a for a in late
+                  if a.type is ActionType.SET_SLOWMODE and a.duration == 0.0]
+        self.assertEqual([a.target_id for a in clears], [42])
+        self.assertNotIn(42, st.active_slowmodes)
+
     def test_tick_idempotent_after_lift(self):
         eng = engine(
             join_rate_threshold=5, join_window_seconds=10, raid_cooldown_seconds=10

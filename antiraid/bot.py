@@ -332,6 +332,9 @@ class AntiRaidBot(commands.AutoShardedBot):
         if t is ActionType.SET_SLOWMODE:
             await self._set_slowmode(guild, action)
             return
+        if t is ActionType.WARN_MEMBER:
+            await self._warn(guild, action)
+            return
         if t is ActionType.STRIP_ACTOR_PERMISSIONS:
             await self._strip(guild, action)
             return
@@ -436,6 +439,22 @@ class AntiRaidBot(commands.AutoShardedBot):
         try:
             await channel.edit(
                 slowmode_delay=int(action.duration or 0), reason=action.reason[:512]
+            )
+        except discord.HTTPException:
+            pass
+
+    async def _warn(self, guild: "discord.Guild", action: Action) -> None:
+        channel = guild.get_channel(action.meta.get("channel_id"))
+        if channel is None:
+            return
+        try:
+            await channel.send(
+                f"⚠️ <@{action.target_id}> please stop — automated spam warning. "
+                "Repeated spam will be actioned automatically.",
+                allowed_mentions=discord.AllowedMentions(
+                    users=True, everyone=False, roles=False
+                ),
+                delete_after=30,
             )
         except discord.HTTPException:
             pass

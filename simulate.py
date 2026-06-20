@@ -61,7 +61,9 @@ class Recorder:
         self.kicks = 0
         self.timeouts = 0
         self.deletes = 0
+        self.warns = 0
         self.slowmoded = []   # channel ids put into slowmode
+        self.quarantined = 0
         self.locked = 0
         self.unlocked = 0
         self.verification = []
@@ -128,6 +130,7 @@ class FakeMember:
         show("🔇", f"TIMEOUT {self.name}")
 
     async def add_roles(self, *roles, reason=None):
+        REC.quarantined += 1
         show("🏷️", f"QUARANTINE {self.name}")
 
     async def remove_roles(self, *roles, reason=None):
@@ -176,6 +179,9 @@ class FakeChannel:
         if embed is not None:
             REC.alerts.append(embed.description)
             show("🚨", f"ALERT → #{self.name}: {embed.description}")
+        elif args:  # a plain-content message = an automated warning
+            REC.warns += 1
+            show("⚠️", f"WARN in #{self.name}")
 
 
 class FakeGuild:
@@ -360,7 +366,7 @@ async def _run_impl(config_path: str):
                     400 + i * 0.4, 5000 + i)
         )
     await drain(bot)
-    show("📊", f"messages deleted={REC.deletes}, channel slowmoded={len(REC.slowmoded)}, "
+    show("📊", f"messages deleted={REC.deletes}, offenders warned={REC.warns}, "
          f"locked_down={bot.engine.is_locked_down(guild.id)}")
     # lift again for the next scenario
     await bot._dispatch(guild, bot.engine.tick(guild.id, BASE + 400 + 200))
@@ -432,7 +438,7 @@ async def _run_impl(config_path: str):
     print(f"  channels unlocked ....... {REC.unlocked}")
     print(f"  verification changes .... {len(REC.verification)}")
     print(f"  spam messages deleted ... {REC.deletes}")
-    print(f"  channels slowmoded ...... {len(REC.slowmoded)}")
+    print(f"  offenders warned ........ {REC.warns}")
     print(f"  rogue admins stripped ... {len(REC.strips)}")
     print(f"  mod alerts sent ......... {len(REC.alerts)}")
 
@@ -445,7 +451,7 @@ async def _run_impl(config_path: str):
         ("lockdown later lifted", REC.unlocked >= 4),
         ("verification raised then lowered", len(REC.verification) >= 2),
         ("spam wave fully deleted", REC.deletes >= 6),
-        ("spam wave throttled the channel (slowmode)", len(REC.slowmoded) >= 1),
+        ("spam wave warned offenders (escalation ladder)", REC.warns >= 1),
         ("rogue admin stripped exactly once", len(REC.strips) == 1),
         ("normal traffic untouched (no false positives)",
          REC.kicks == 0),

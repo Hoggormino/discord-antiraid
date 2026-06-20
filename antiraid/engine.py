@@ -356,22 +356,57 @@ class AntiRaidEngine:
                 actions.append(act)
         return actions
 
-    def _spam_enforcement(
-        self, cfg: GuildConfig, guild_id: int, channel_id: int, user_id: int, reason: str
-    ) -> Action:
-        """The per-spammer response: either time the member out, or (default)
-        slow the channel down. Discord slowmode is per-channel, so SLOWMODE
-        rate-limits the spammed channel rather than punishing one member."""
-        if cfg.spam_response == SpamResponse.TIMEOUT:
-            return Action(
-                ActionType.TIMEOUT_MEMBER, guild_id=guild_id, target_id=user_id,
-                reason=reason, severity=Severity.HIGH, duration=cfg.spam_timeout_seconds,
-            )
+    def _warn_action(self, event, uid, reason) -> Action:
         return Action(
-            ActionType.SET_SLOWMODE, guild_id=guild_id, target_id=channel_id,
-            reason=reason, severity=Severity.MEDIUM,
-            duration=float(cfg.slowmode_seconds), meta={"user_id": user_id},
+            ActionType.WARN_MEMBER, guild_id=event.guild_id, target_id=uid,
+            reason=reason, severity=Severity.LOW,
+            meta={"channel_id": event.channel_id, "user_id": uid},
         )
+
+    def _slowmode_action(self, cfg, state, event, uid, reason) -> Action:
+        # record the channel so tick() can auto-clear it once spam subsides
+        state.active_slowmodes[event.channel_id] = event.timestamp
+        return Action(
+            ActionType.SET_SLOWMODE, guild_id=event.guild_id, target_id=event.channel_id,
+            reason=reason, severity=Severity.MEDIUM,
+            duration=float(cfg.slowmode_seconds), meta={"user_id": uid},
+        )
+
+    def _timeout_action(self, cfg, event, uid, reason) -> Action:
+        return Action(
+            ActionType.TIMEOUT_MEMBER, guild_id=event.guild_id, target_id=uid,
+            reason=reason, severity=Severity.HIGH, duration=cfg.spam_timeout_seconds,
+        )
+
+    def _quarantine_action(self, event, uid, reason) -> Action:
+        return Action(
+            ActionType.QUARANTINE_MEMBER, guild_id=event.guild_id, target_id=uid,
+            reason=reason, severity=Severity.HIGH,
+        )
+
+    def _spam_enforcement(self, cfg, state, event, uid: int, reason: str) -> Action:
+        """The per-spammer response.
+
+        With escalation (default), repeat offenders within escalation_window
+        climb the ladder: warn -> slowmode -> timeout -> quarantine. Without
+        escalation, every trigger gets the flat spam_response. Discord slowmode
+        is per-channel, so it rate-limits the spammed channel, not one member.
+        """
+        if cfg.escalating_spam:
+            offenses = state.user_offenses[uid]
+            offenses.append((event.timestamp,))
+            _prune_left(offenses, event.timestamp - cfg.escalation_window)
+            step = min(len(offenses), 4)
+        else:
+            step = 2 if cfg.spam_response == SpamResponse.SLOWMODE else 3
+
+        if step == 1:
+            return self._warn_action(event, uid, reason)
+        if step == 2:
+            return self._slowmode_action(cfg, state, event, uid, reason)
+        if step == 3:
+            return self._timeout_action(cfg, event, uid, reason)
+        return self._quarantine_action(event, uid, reason)
 
     # ==================================================================
     # MESSAGES
@@ -445,7 +480,7 @@ class AntiRaidEngine:
                                 meta={"channel_id": event.channel_id, "user_id": uid2},
                             )
                         )
-                        if cfg.spam_response == SpamResponse.TIMEOUT:
+                        if not cfg.escalating_spam and cfg.spam_response == SpamResponse.TIMEOUT:
                             actions.append(
                                 Action(
                                     ActionType.TIMEOUT_MEMBER,
@@ -496,9 +531,7 @@ class AntiRaidEngine:
                     meta={"channel_id": event.channel_id, "user_id": uid},
                 )
             )
-            actions.append(
-                self._spam_enforcement(cfg, event.guild_id, event.channel_id, uid, why)
-            )
+            actions.append(self._spam_enforcement(cfg, state, event, uid, why))
         return actions
 
     # ==================================================================
@@ -557,6 +590,20 @@ class AntiRaidEngine:
         actions: List[Action] = []
         # Always reclaim stale tracking data, even when nothing is happening.
         state.housekeep(now, cfg)
+        # Auto-clear channel slowmodes once the spam has subsided.
+        for ch_id, last in list(state.active_slowmodes.items()):
+            if now - last >= cfg.slowmode_cooldown:
+                actions.append(
+                    Action(
+                        ActionType.SET_SLOWMODE,
+                        guild_id,
+                        target_id=ch_id,
+                        reason="Spam subsided; slowmode cleared",
+                        severity=Severity.INFO,
+                        duration=0.0,
+                    )
+                )
+                del state.active_slowmodes[ch_id]
         if not state.raid_active and not state.lockdown_active:
             return actions
         quiet_for = now - state.last_raid_signal
