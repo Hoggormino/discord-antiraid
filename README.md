@@ -33,6 +33,7 @@ tested offline, with no bot token and no live server.
 | **Coordinated spam wave** | identical message from many users | Lockdown + **retroactive** delete of the whole wave + escalating response¹ |
 | **Mention/ping spam** | per-message and cumulative mentions, `@everyone` | Delete + escalating response¹ |
 | **Invite/link spam** | repeated invite/URL posts | Delete + escalating response¹ |
+| **Compromised admin / rogue bot ("nuke")** | one actor doing many destructive audit-log actions | Strip the actor's dangerous roles + critical alert |
 
 ¹ Spam responses **escalate** per offender (within `escalation_window`):
 **warn (×2 by default) → channel slowmode → timeout → quarantine**
@@ -44,7 +45,6 @@ per-*channel*, so it briefly rate-limits everyone in the channel.
 
 ² `raid_action` defaults to **`quarantine`** (strip to a locked role — gentle,
 reversible). Use `!ar set raid_action ban` (or `kick`/`alert`) to change it.
-| **Compromised admin / rogue bot ("nuke")** | one actor doing many destructive audit-log actions | Strip the actor's dangerous roles + critical alert |
 
 After a configurable quiet period, raid mode and lockdown **lift themselves
 automatically**.
