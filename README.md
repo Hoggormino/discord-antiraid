@@ -28,11 +28,16 @@ tested offline, with no bot token and no live server.
 | **Scripted/slow raid** | cluster of similar usernames — robust to homoglyphs (`Rаider` w/ Cyrillic), full-width (`Ｒaider`), accents and leetspeak (`R4id3r`) | Same as above — catches raids that stay *under* the join-rate bar |
 | **Throwaway accounts** | account age below threshold | Treated as raiders during a raid; optional gate in peacetime |
 | **Malicious usernames** | AutoMod-style regex filter on join (matches raw name *and* normalised skeleton) | Quarantine/kick/ban on join, no raid required |
-| **Message flood** | per-user message rate | Delete + timeout |
-| **Copy-paste spam** | same content repeated by one user | Delete + timeout |
-| **Coordinated spam wave** | identical message from many users | Lockdown + **retroactive** delete of the whole wave + timeout every author |
-| **Mention/ping spam** | per-message and cumulative mentions, `@everyone` | Delete + timeout |
-| **Invite/link spam** | repeated invite/URL posts | Delete + timeout |
+| **Message flood** | per-user message rate | Delete + channel slowmode¹ |
+| **Copy-paste spam** | same content repeated by one user | Delete + channel slowmode¹ |
+| **Coordinated spam wave** | identical message from many users | Lockdown + **retroactive** delete of the whole wave + channel slowmode¹ |
+| **Mention/ping spam** | per-message and cumulative mentions, `@everyone` | Delete + channel slowmode¹ |
+| **Invite/link spam** | repeated invite/URL posts | Delete + channel slowmode¹ |
+
+¹ Spam response is configurable via `spam_response`: **`slowmode`** (default — delete
+the spam and put the channel in slowmode) or **`timeout`** (delete + time the member
+out). Switch with `!ar set spam_response timeout`. Note Discord slowmode is
+per-*channel*, so it briefly rate-limits everyone in the spammed channel.
 | **Compromised admin / rogue bot ("nuke")** | one actor doing many destructive audit-log actions | Strip the actor's dangerous roles + critical alert |
 
 After a configurable quiet period, raid mode and lockdown **lift themselves
@@ -132,6 +137,7 @@ raid_only_suspicious                        sweep only new/suspicious vs everyon
 raid_cooldown_seconds                       auto-lift delay
 msg_rate_threshold / msg_rate_window        flood
 duplicate_threshold / cross_user_threshold  copy-paste / coordinated spam
+spam_response / slowmode_seconds            slowmode (default) vs timeout response
 mention_threshold / mention_window_threshold mention spam
 nuke_threshold / nuke_window                anti-nuke sensitivity
 banned_name_patterns / name_filter_action   AutoMod-style username filter

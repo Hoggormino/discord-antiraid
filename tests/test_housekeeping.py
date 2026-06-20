@@ -46,7 +46,7 @@ class TestHousekeeping(unittest.TestCase):
         for i in range(3, 6):
             actions += eng.process_message(u.message(m, f"hi {i}", t + 4 + i * 0.1, mid=i))
         from antiraid.actions import ActionType
-        self.assertTrue(u.has(actions, ActionType.TIMEOUT_MEMBER))
+        self.assertTrue(u.has(actions, ActionType.SET_SLOWMODE))
 
     def test_audit_buckets_reclaimed(self):
         from antiraid.models import AuditAction

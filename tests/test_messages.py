@@ -15,15 +15,28 @@ def engine(**overrides) -> AntiRaidEngine:
 
 
 class TestFlood(unittest.TestCase):
-    def test_flood_triggers_timeout_and_delete(self):
+    def test_flood_triggers_slowmode_and_delete(self):
         eng = engine(msg_rate_threshold=5, msg_rate_window=5)
         m = u.member(1)
         actions = []
         for i in range(5):
             actions += eng.process_message(u.message(m, f"hi {i}", u.NOW + i, mid=i))
-        self.assertTrue(u.has(actions, ActionType.TIMEOUT_MEMBER))
+        self.assertTrue(u.has(actions, ActionType.SET_SLOWMODE))
         self.assertTrue(u.has(actions, ActionType.DELETE_MESSAGE))
-        self.assertIn(1, u.targets(actions, ActionType.TIMEOUT_MEMBER))
+        # slowmode targets the channel (42), not the member
+        self.assertIn(42, u.targets(actions, ActionType.SET_SLOWMODE))
+
+    def test_timeout_mode_times_out_member(self):
+        from antiraid.config import SpamResponse
+        eng = engine(msg_rate_threshold=5, msg_rate_window=5,
+                     spam_response=SpamResponse.TIMEOUT)
+        m = u.member(7)
+        actions = []
+        for i in range(5):
+            actions += eng.process_message(u.message(m, f"hi {i}", u.NOW + i, mid=i))
+        self.assertTrue(u.has(actions, ActionType.TIMEOUT_MEMBER))
+        self.assertIn(7, u.targets(actions, ActionType.TIMEOUT_MEMBER))
+        self.assertFalse(u.has(actions, ActionType.SET_SLOWMODE))
 
     def test_slow_messages_no_flood(self):
         eng = engine(msg_rate_threshold=5, msg_rate_window=5)
@@ -31,7 +44,7 @@ class TestFlood(unittest.TestCase):
         actions = []
         for i in range(10):
             actions += eng.process_message(u.message(m, f"hi {i}", u.NOW + i * 3, mid=i))
-        self.assertFalse(u.has(actions, ActionType.TIMEOUT_MEMBER))
+        self.assertFalse(u.has(actions, ActionType.SET_SLOWMODE))
 
 
 class TestDuplicate(unittest.TestCase):
@@ -43,7 +56,7 @@ class TestDuplicate(unittest.TestCase):
         actions = []
         for i in range(4):
             actions += eng.process_message(u.message(m, "BUY CRYPTO NOW", u.NOW + i, mid=i))
-        self.assertTrue(u.has(actions, ActionType.TIMEOUT_MEMBER))
+        self.assertTrue(u.has(actions, ActionType.SET_SLOWMODE))
 
     def test_different_content_not_duplicate(self):
         eng = engine(msg_rate_threshold=100, duplicate_threshold=4)
@@ -51,7 +64,7 @@ class TestDuplicate(unittest.TestCase):
         actions = []
         for i in range(6):
             actions += eng.process_message(u.message(m, f"msg number {i}", u.NOW + i, mid=i))
-        self.assertFalse(u.has(actions, ActionType.TIMEOUT_MEMBER))
+        self.assertFalse(u.has(actions, ActionType.SET_SLOWMODE))
 
 
 class TestCrossUserSpam(unittest.TestCase):
@@ -82,14 +95,14 @@ class TestMentionSpam(unittest.TestCase):
         actions = eng.process_message(
             u.message(u.member(1), "ping", u.NOW, mid=1, mentions=8)
         )
-        self.assertTrue(u.has(actions, ActionType.TIMEOUT_MEMBER))
+        self.assertTrue(u.has(actions, ActionType.SET_SLOWMODE))
 
     def test_everyone_ping_flagged(self):
         eng = engine(msg_rate_threshold=100, mention_threshold=50)
         actions = eng.process_message(
             u.message(u.member(1), "hey", u.NOW, mid=1, mentions=0, everyone=True)
         )
-        self.assertTrue(u.has(actions, ActionType.TIMEOUT_MEMBER))
+        self.assertTrue(u.has(actions, ActionType.SET_SLOWMODE))
 
     def test_cumulative_mentions_across_messages(self):
         eng = engine(
@@ -104,7 +117,7 @@ class TestMentionSpam(unittest.TestCase):
             actions += eng.process_message(
                 u.message(m, "p", u.NOW + i, mid=i, mentions=3)
             )
-        self.assertTrue(u.has(actions, ActionType.TIMEOUT_MEMBER))
+        self.assertTrue(u.has(actions, ActionType.SET_SLOWMODE))
 
 
 class TestLinkSpam(unittest.TestCase):
@@ -116,14 +129,14 @@ class TestLinkSpam(unittest.TestCase):
             actions += eng.process_message(
                 u.message(m, f"join discord.gg/abc{i}", u.NOW + i, mid=i)
             )
-        self.assertTrue(u.has(actions, ActionType.TIMEOUT_MEMBER))
+        self.assertTrue(u.has(actions, ActionType.SET_SLOWMODE))
 
     def test_single_link_is_fine(self):
         eng = engine(msg_rate_threshold=100, link_threshold=3)
         actions = eng.process_message(
             u.message(u.member(1), "check https://example.com", u.NOW, mid=1)
         )
-        self.assertFalse(u.has(actions, ActionType.TIMEOUT_MEMBER))
+        self.assertFalse(u.has(actions, ActionType.SET_SLOWMODE))
 
 
 class TestMessageExemptions(unittest.TestCase):

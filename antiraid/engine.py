@@ -27,7 +27,7 @@ import unicodedata
 from typing import Callable, Dict, List, Optional
 
 from .actions import Action, ActionType, Severity
-from .config import GuildConfig, RaidAction
+from .config import GuildConfig, RaidAction, SpamResponse
 from .models import AuditEvent, JoinEvent, Member, MessageEvent
 from .state import GuildState, StateStore, _prune_left
 
@@ -356,6 +356,23 @@ class AntiRaidEngine:
                 actions.append(act)
         return actions
 
+    def _spam_enforcement(
+        self, cfg: GuildConfig, guild_id: int, channel_id: int, user_id: int, reason: str
+    ) -> Action:
+        """The per-spammer response: either time the member out, or (default)
+        slow the channel down. Discord slowmode is per-channel, so SLOWMODE
+        rate-limits the spammed channel rather than punishing one member."""
+        if cfg.spam_response == SpamResponse.TIMEOUT:
+            return Action(
+                ActionType.TIMEOUT_MEMBER, guild_id=guild_id, target_id=user_id,
+                reason=reason, severity=Severity.HIGH, duration=cfg.spam_timeout_seconds,
+            )
+        return Action(
+            ActionType.SET_SLOWMODE, guild_id=guild_id, target_id=channel_id,
+            reason=reason, severity=Severity.MEDIUM,
+            duration=float(cfg.slowmode_seconds), meta={"user_id": user_id},
+        )
+
     # ==================================================================
     # MESSAGES
     # ==================================================================
@@ -410,7 +427,9 @@ class AntiRaidEngine:
                     self._begin_raid(state, now, actions, cfg, reason, Severity.HIGH)
                 state.last_raid_signal = now
                 # Retroactively wipe the whole wave the first time we catch it:
-                # every earlier identical message + a timeout for its author.
+                # delete every earlier identical message (+ timeout each author
+                # only in TIMEOUT mode; in SLOWMODE the channel throttle below
+                # covers the whole wave at once).
                 if fp not in state.flagged_content:
                     state.flagged_content.add(fp)
                     for ts2, uid2, mid2 in list(authors):
@@ -426,16 +445,17 @@ class AntiRaidEngine:
                                 meta={"channel_id": event.channel_id, "user_id": uid2},
                             )
                         )
-                        actions.append(
-                            Action(
-                                ActionType.TIMEOUT_MEMBER,
-                                guild_id=event.guild_id,
-                                target_id=uid2,
-                                reason=reason,
-                                severity=Severity.HIGH,
-                                duration=cfg.spam_timeout_seconds,
+                        if cfg.spam_response == SpamResponse.TIMEOUT:
+                            actions.append(
+                                Action(
+                                    ActionType.TIMEOUT_MEMBER,
+                                    guild_id=event.guild_id,
+                                    target_id=uid2,
+                                    reason=reason,
+                                    severity=Severity.HIGH,
+                                    duration=cfg.spam_timeout_seconds,
+                                )
                             )
-                        )
 
         # ---- mention spam ---------------------------------------------
         mentions = event.mention_count + (50 if event.mentions_everyone else 0)
@@ -477,14 +497,7 @@ class AntiRaidEngine:
                 )
             )
             actions.append(
-                Action(
-                    ActionType.TIMEOUT_MEMBER,
-                    guild_id=event.guild_id,
-                    target_id=uid,
-                    reason=why,
-                    severity=Severity.HIGH,
-                    duration=cfg.spam_timeout_seconds,
-                )
+                self._spam_enforcement(cfg, event.guild_id, event.channel_id, uid, why)
             )
         return actions
 

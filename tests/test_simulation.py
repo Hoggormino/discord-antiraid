@@ -83,13 +83,14 @@ class TestFullRaidScenario(unittest.TestCase):
             )
             t += 0.5
         # Lockdown engages and the entire wave is cleaned up retroactively:
-        # all six messages deleted, every author timed out.
+        # all six messages deleted, and the channel put into slowmode (the
+        # default spam response).
         self.assertTrue(eng.is_locked_down(u.GUILD))
         self.assertTrue(u.has(all_acts, ActionType.ENABLE_LOCKDOWN))
         self.assertEqual(set(u.targets(all_acts, ActionType.DELETE_MESSAGE)),
                          {0, 1, 2, 3, 4, 5})
-        self.assertEqual(set(u.targets(all_acts, ActionType.TIMEOUT_MEMBER)),
-                         {2000, 2001, 2002, 2003, 2004, 2005})
+        self.assertTrue(u.has(all_acts, ActionType.SET_SLOWMODE))
+        self.assertFalse(u.has(all_acts, ActionType.TIMEOUT_MEMBER))
 
     def test_compromised_admin_nuke_is_stopped(self):
         eng = production_engine()
@@ -141,6 +142,7 @@ class TestNoFalsePositives(unittest.TestCase):
                 ActionType.BAN_MEMBER,
                 ActionType.KICK_MEMBER,
                 ActionType.TIMEOUT_MEMBER,
+                ActionType.SET_SLOWMODE,
                 ActionType.DELETE_MESSAGE,
                 ActionType.ENABLE_LOCKDOWN,
             }
@@ -157,7 +159,7 @@ class TestNoFalsePositives(unittest.TestCase):
         for i in range(20):
             actions += eng.process_message(u.message(m, f"unique thought {i}", t, mid=i))
             t += 2  # 1 msg / 2s — under the 6-in-5s flood bar
-        self.assertFalse(u.has(actions, ActionType.TIMEOUT_MEMBER))
+        self.assertFalse(u.has(actions, ActionType.SET_SLOWMODE))
         self.assertFalse(eng.is_raid_active(u.GUILD))
 
 

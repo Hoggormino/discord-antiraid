@@ -65,6 +65,7 @@ def plan_actions(actions: List[Action], max_per_ban_call: int = MAX_BULK_BAN) ->
     others: List[Action] = []
     ban_ids: "OrderedDict[int, List[int]]" = OrderedDict()
     seen: dict = {}
+    slowmode_seen: set = set()
 
     for action in actions:
         if action.type in URGENT_TYPES:
@@ -75,6 +76,13 @@ def plan_actions(actions: List[Action], max_per_ban_call: int = MAX_BULK_BAN) ->
                 continue  # already going to be banned in this batch
             guild_seen.add(action.target_id)
             ban_ids.setdefault(action.guild_id, []).append(action.target_id)
+        elif action.type is ActionType.SET_SLOWMODE:
+            # one slowmode change per channel per batch (avoid hammering edits)
+            key = (action.guild_id, action.target_id)
+            if key in slowmode_seen:
+                continue
+            slowmode_seen.add(key)
+            others.append(action)
         else:
             others.append(action)
 

@@ -329,6 +329,9 @@ class AntiRaidBot(commands.AutoShardedBot):
         if t is ActionType.DELETE_MESSAGE:
             await self._delete_message(guild, action)
             return
+        if t is ActionType.SET_SLOWMODE:
+            await self._set_slowmode(guild, action)
+            return
         if t is ActionType.STRIP_ACTOR_PERMISSIONS:
             await self._strip(guild, action)
             return
@@ -423,6 +426,17 @@ class AntiRaidBot(commands.AutoShardedBot):
                 else discord.VerificationLevel.medium
             )
             await guild.edit(verification_level=level, reason="Anti-raid response")
+        except discord.HTTPException:
+            pass
+
+    async def _set_slowmode(self, guild: "discord.Guild", action: Action) -> None:
+        channel = guild.get_channel(action.target_id)
+        if channel is None:
+            return
+        try:
+            await channel.edit(
+                slowmode_delay=int(action.duration or 0), reason=action.reason[:512]
+            )
         except discord.HTTPException:
             pass
 
@@ -567,7 +581,7 @@ def register_commands(bot: AntiRaidBot) -> None:
         current = getattr(cfg, key)
         try:
             if key in cfg._ENUM_FIELDS:
-                coerced = RaidAction(value)
+                coerced = cfg._ENUM_FIELDS[key](value)
             elif isinstance(current, bool):
                 coerced = value.lower() in ("1", "true", "yes", "on")
             elif isinstance(current, int):

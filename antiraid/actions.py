@@ -34,6 +34,7 @@ class ActionType(Enum):
     TIMEOUT_MEMBER = "timeout_member"
     QUARANTINE_MEMBER = "quarantine_member"  # strip to a locked "unverified" role
     DELETE_MESSAGE = "delete_message"
+    SET_SLOWMODE = "set_slowmode"  # channel-level rate limit (target = channel id)
 
     # Guild-wide raid response
     ENABLE_LOCKDOWN = "enable_lockdown"

@@ -21,6 +21,13 @@ class RaidAction(str, Enum):
     ALERT = "alert"  # detect only, take no destructive action
 
 
+class SpamResponse(str, Enum):
+    """How to respond to a member caught spamming."""
+
+    SLOWMODE = "slowmode"  # delete the spam + put the channel in slowmode
+    TIMEOUT = "timeout"    # delete the spam + time the member out
+
+
 @dataclass
 class GuildConfig:
     guild_id: int = 0
@@ -67,7 +74,11 @@ class GuildConfig:
     mention_window: float = 15.0
     link_threshold: int = 3               # invite/url messages per user
     link_window: float = 20.0
-    #: timeout duration applied to spammers, seconds.
+    #: how to respond to a detected spammer.
+    spam_response: SpamResponse = SpamResponse.SLOWMODE
+    #: channel slowmode (seconds) applied when spam_response == SLOWMODE.
+    slowmode_seconds: int = 10
+    #: timeout duration (seconds) applied when spam_response == TIMEOUT.
     spam_timeout_seconds: float = 600.0
 
     # ---- username filtering (AutoMod-style, acts on the name itself) ---
@@ -89,7 +100,12 @@ class GuildConfig:
     # ---------------------------------------------------------------
     _SET_FIELDS = ("trusted_roles", "allowlist_users", "allowlist_bots")
     _STR_SET_FIELDS = ("banned_name_patterns",)
-    _ENUM_FIELDS = ("raid_action", "name_filter_action")
+    #: enum field name -> its enum class, for (de)serialisation and `!ar set`.
+    _ENUM_FIELDS = {
+        "raid_action": RaidAction,
+        "name_filter_action": RaidAction,
+        "spam_response": SpamResponse,
+    }
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
@@ -109,9 +125,9 @@ class GuildConfig:
         for key in cls._STR_SET_FIELDS:
             if key in clean and clean[key] is not None:
                 clean[key] = frozenset(str(x) for x in clean[key])
-        for key in cls._ENUM_FIELDS:
+        for key, enum_cls in cls._ENUM_FIELDS.items():
             if key in clean and clean[key] is not None:
-                clean[key] = RaidAction(clean[key])
+                clean[key] = enum_cls(clean[key])
         return cls(**clean)
 
     def validate(self) -> "GuildConfig":

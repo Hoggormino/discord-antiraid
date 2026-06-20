@@ -61,6 +61,7 @@ class Recorder:
         self.kicks = 0
         self.timeouts = 0
         self.deletes = 0
+        self.slowmoded = []   # channel ids put into slowmode
         self.locked = 0
         self.unlocked = 0
         self.verification = []
@@ -162,6 +163,11 @@ class FakeChannel:
             REC.locked += 1
         else:
             REC.unlocked += 1
+
+    async def edit(self, *, slowmode_delay=None, reason=None, **kw):
+        if slowmode_delay:
+            REC.slowmoded.append(self.id)
+            show("🐢", f"SLOWMODE #{self.name} -> {slowmode_delay}s")
 
     async def fetch_message(self, mid):
         return FakeMessage(mid)
@@ -354,7 +360,7 @@ async def _run_impl(config_path: str):
                     400 + i * 0.4, 5000 + i)
         )
     await drain(bot)
-    show("📊", f"messages deleted={REC.deletes}, timeouts={REC.timeouts}, "
+    show("📊", f"messages deleted={REC.deletes}, channel slowmoded={len(REC.slowmoded)}, "
          f"locked_down={bot.engine.is_locked_down(guild.id)}")
     # lift again for the next scenario
     await bot._dispatch(guild, bot.engine.tick(guild.id, BASE + 400 + 200))
@@ -426,7 +432,7 @@ async def _run_impl(config_path: str):
     print(f"  channels unlocked ....... {REC.unlocked}")
     print(f"  verification changes .... {len(REC.verification)}")
     print(f"  spam messages deleted ... {REC.deletes}")
-    print(f"  spammers timed out ...... {REC.timeouts}")
+    print(f"  channels slowmoded ...... {len(REC.slowmoded)}")
     print(f"  rogue admins stripped ... {len(REC.strips)}")
     print(f"  mod alerts sent ......... {len(REC.alerts)}")
 
@@ -439,7 +445,7 @@ async def _run_impl(config_path: str):
         ("lockdown later lifted", REC.unlocked >= 4),
         ("verification raised then lowered", len(REC.verification) >= 2),
         ("spam wave fully deleted", REC.deletes >= 6),
-        ("spammers timed out", REC.timeouts >= 6),
+        ("spam wave throttled the channel (slowmode)", len(REC.slowmoded) >= 1),
         ("rogue admin stripped exactly once", len(REC.strips) == 1),
         ("normal traffic untouched (no false positives)",
          REC.kicks == 0),
