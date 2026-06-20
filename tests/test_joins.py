@@ -173,6 +173,26 @@ class TestAccountAgeGate(unittest.TestCase):
         self.assertEqual(actions, [])
 
 
+class TestVerificationGate(unittest.TestCase):
+    def test_gate_emitted_on_join_when_enabled(self):
+        eng = engine(verification_gate=True, join_rate_threshold=100)
+        actions = eng.process_join(u.join(u.member(1, age_days=400), u.NOW))
+        self.assertTrue(u.has(actions, ActionType.GATE_MEMBER))
+        self.assertIn(1, u.targets(actions, ActionType.GATE_MEMBER))
+
+    def test_no_gate_when_disabled(self):
+        eng = engine(join_rate_threshold=100)  # gate off by default
+        actions = eng.process_join(u.join(u.member(1, age_days=400), u.NOW))
+        self.assertFalse(u.has(actions, ActionType.GATE_MEMBER))
+
+    def test_gate_skips_exempt_members(self):
+        eng = engine(verification_gate=True, trusted_roles=frozenset({5}))
+        actions = eng.process_join(
+            u.join(u.member(1, roles=(5,), age_days=400), u.NOW)
+        )
+        self.assertEqual(actions, [])
+
+
 class TestExemptions(unittest.TestCase):
     def test_owner_never_counts_or_actioned(self):
         eng = engine(join_rate_threshold=3, join_window_seconds=10,

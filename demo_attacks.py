@@ -145,4 +145,17 @@ for i in range(7):
     print(f"  message #{i + 1}:")
     show(acts)
 
+
+# ---------------------------------------------------------------------------
+# F) Verification gate — every new member must verify before chatting
+# ---------------------------------------------------------------------------
+header("F) Verification gate")
+print("  with the gate on, each non-exempt joiner is gated (gets the Unverified")
+print("  role) until they react to verify. The adapter handles the role + react.\n")
+eng = engine(verification_gate=True, join_rate_threshold=100, similar_name_threshold=100)
+for i, name in enumerate(["newcomer", "anotherguy"]):
+    acts = eng.process_join(JoinEvent(GUILD, member(7000 + i, name), BASE + i))
+    print(f"  join: {name!r}")
+    show(acts)
+
 print("\nDone.\n")

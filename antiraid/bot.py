@@ -183,6 +183,27 @@ class AntiRaidBot(commands.AutoShardedBot):
         )
         await self._dispatch(guild, self.engine.process_audit(ev))
 
+    async def on_raw_reaction_add(self, payload: "discord.RawReactionActionEvent") -> None:
+        if payload.guild_id is None:
+            return
+        if self.user is not None and payload.user_id == self.user.id:
+            return
+        cfg = self.store.get(payload.guild_id)
+        if not cfg.verification_gate or payload.message_id != cfg.verification_message_id:
+            return
+        if str(payload.emoji) != "✅":
+            return
+        guild = self.get_guild(payload.guild_id)
+        if guild is None:
+            return
+        member = guild.get_member(payload.user_id)
+        role = discord.utils.get(guild.roles, name=cfg.unverified_role_name)
+        if member is not None and role is not None and role in member.roles:
+            try:
+                await member.remove_roles(role, reason="Passed verification")
+            except discord.HTTPException:
+                pass
+
     @tasks.loop(seconds=5.0)
     async def housekeeping_loop(self) -> None:
         for guild in list(self.guilds):
@@ -336,6 +357,9 @@ class AntiRaidBot(commands.AutoShardedBot):
         if t is ActionType.WARN_MEMBER:
             await self._warn(guild, action)
             return
+        if t is ActionType.GATE_MEMBER:
+            await self._gate_member(guild, action)
+            return
         if t is ActionType.STRIP_ACTOR_PERMISSIONS:
             await self._strip(guild, action)
             return
@@ -443,6 +467,40 @@ class AntiRaidBot(commands.AutoShardedBot):
             )
         except discord.HTTPException:
             pass
+
+    async def _gate_member(self, guild: "discord.Guild", action: Action) -> None:
+        member = guild.get_member(action.target_id)
+        if member is None:
+            return
+        cfg = self.store.get(guild.id)
+        role = await self._unverified_role(guild, cfg)
+        if role is not None and role not in member.roles:
+            await member.add_roles(role, reason="Verification gate")
+
+    async def _unverified_role(self, guild: "discord.Guild", cfg: GuildConfig):
+        """Get or create the unverified role; new roles are denied everywhere
+        except the verification channel."""
+        role = discord.utils.get(guild.roles, name=cfg.unverified_role_name)
+        if role is not None:
+            return role
+        try:
+            role = await guild.create_role(
+                name=cfg.unverified_role_name,
+                permissions=discord.Permissions.none(),
+                reason="Verification gate role",
+            )
+            for ch in guild.channels:
+                here = ch.id == cfg.verification_channel_id
+                try:
+                    await ch.set_permissions(
+                        role, view_channel=here, send_messages=here,
+                        reason="Verification gate",
+                    )
+                except discord.HTTPException:
+                    continue
+        except discord.HTTPException:
+            return None
+        return role
 
     async def _warn(self, guild: "discord.Guild", action: Action) -> None:
         channel = guild.get_channel(action.meta.get("channel_id"))
@@ -572,6 +630,31 @@ def register_commands(bot: AntiRaidBot) -> None:
         bot.store.set(cfg)
         await ctx.send(f"✅ `{role.name}` is now trusted (exempt from enforcement).")
 
+    @bot.command(name="setupverify")
+    @admin()
+    async def setupverify(ctx: "commands.Context",
+                          channel: "discord.TextChannel" = None):
+        channel = channel or ctx.channel
+        cfg = bot.store.get(ctx.guild.id)
+        cfg.verification_channel_id = channel.id
+        cfg.verification_gate = True
+        role = await bot._unverified_role(ctx.guild, cfg)
+        if role is None:
+            await ctx.send("❌ Couldn't create the unverified role — check my "
+                           "permissions (need Manage Roles, above the target roles).")
+            return
+        msg = await channel.send(
+            "🛡️ **Verification** — react with ✅ to gain access to the server."
+        )
+        await msg.add_reaction("✅")
+        cfg.verification_message_id = msg.id
+        bot.store.set(cfg)
+        await ctx.send(
+            f"✅ Verification gate enabled in {channel.mention}. New members get "
+            f"`{cfg.unverified_role_name}` until they react. Disable with "
+            "`!ar set verification_gate false`."
+        )
+
     @bot.command(name="release")
     @admin()
     async def release(ctx: "commands.Context", member: "discord.Member"):
@@ -589,6 +672,7 @@ def register_commands(bot: AntiRaidBot) -> None:
             "**Anti-Raid** (prefix `!ar `, needs Manage Server):\n"
             "`status` · `enable` / `disable` · `lockdown` / `unlock`\n"
             "`trust @role` — exempt a role · `release @user` — undo a quarantine\n"
+            "`setupverify [#channel]` — enable the react-to-verify gate\n"
             "`blockname <regex>` — ban a username pattern on join\n"
             "`set <key> <value>` — tune anything, e.g. `set raid_action ban`, "
             "`set spam_warnings 1`, `set escalating_spam false`"

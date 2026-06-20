@@ -61,6 +61,13 @@ class GuildConfig:
     #: outside an active raid, also enforce the account-age gate on joiners.
     enforce_account_age_outside_raid: bool = False
 
+    # ---- verification gate (front-door check for every new member) -----
+    #: when on, new joiners get the unverified role until they verify.
+    verification_gate: bool = False
+    verification_channel_id: int = 0
+    verification_message_id: int = 0
+    unverified_role_name: str = "Unverified"
+
     # ---- message spam --------------------------------------------------
     msg_rate_threshold: int = 6           # messages ...
     msg_rate_window: float = 5.0          # ... within this window => spam

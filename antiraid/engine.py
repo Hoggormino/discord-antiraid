@@ -159,6 +159,18 @@ class AntiRaidEngine:
         actions: List[Action] = []
         newly_triggered = False
 
+        # ---- verification gate (front door for every new member) ------
+        if cfg.verification_gate:
+            actions.append(
+                Action(
+                    ActionType.GATE_MEMBER,
+                    guild_id=event.guild_id,
+                    target_id=member.id,
+                    reason="Verification gate: new member must verify",
+                    severity=Severity.LOW,
+                )
+            )
+
         # ---- mass-join detection --------------------------------------
         if not state.raid_active and len(state.joins) >= cfg.join_rate_threshold:
             newly_triggered = True

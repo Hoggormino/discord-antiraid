@@ -10,7 +10,7 @@ The project is deliberately split into two layers:
 
 | Layer | Modules | Dependencies | Tested by |
 |-------|---------|--------------|-----------|
-| **Pure decision engine** | `models`, `actions`, `config`, `config_store`, `incident_store`, `state`, `engine`, `executor` | standard library only | 118 unit/simulation tests |
+| **Pure decision engine** | `models`, `actions`, `config`, `config_store`, `incident_store`, `state`, `engine`, `executor` | standard library only | 121 unit/simulation tests |
 | **Discord adapter** | `bot`, `run` | `discord.py` | adapter safety tests + manual run |
 
 The engine **never** touches the network or reads the clock — every decision is
@@ -27,6 +27,7 @@ tested offline, with no bot token and no live server.
 | **Mass-join raid** | N joins inside a sliding window | Lockdown + raise verification + **quarantine** raiders² (incl. **retroactive** sweep of everyone already in the window) |
 | **Scripted/slow raid** | cluster of similar usernames — robust to homoglyphs (`Rаider` w/ Cyrillic), full-width (`Ｒaider`), accents and leetspeak (`R4id3r`) | Same as above — catches raids that stay *under* the join-rate bar |
 | **Throwaway accounts** | account age below threshold | Treated as raiders during a raid; optional gate in peacetime |
+| **Unverified newcomers** (opt-in) | every new member, when the verification gate is on | Assign an `Unverified` role (locked to a verify channel) until they react ✅ — `!ar setupverify` |
 | **Malicious usernames** | AutoMod-style regex filter on join (matches raw name *and* normalised skeleton) | Quarantine/kick/ban on join, no raid required |
 | **Message flood** | per-user message rate | Delete + escalating response¹ |
 | **Copy-paste spam** | same content repeated by one user | Delete + escalating response¹ |
@@ -127,6 +128,7 @@ Prefix `!ar ` (requires **Manage Server**):
 | `!ar lockdown` / `!ar unlock` | Manual lockdown / restore |
 | `!ar trust @role` | Mark a role exempt from enforcement |
 | `!ar release @user` | Undo a quarantine (release a false-positive) |
+| `!ar setupverify [#channel]` | Enable the react-to-verify gate for new members |
 | `!ar blockname <regex>` | Add a banned-username pattern (actioned on join) |
 | `!ar help` | List all commands |
 | `!ar set <key> <value>` | Tune any threshold (e.g. `!ar set join_rate_threshold 10`, `!ar set raid_action kick`, `!ar set name_filter_action ban`) |
@@ -151,6 +153,7 @@ spam_response / slowmode_seconds            flat response (when not escalating)
 slowmode_cooldown                           auto-clear channel slowmode after quiet
 mention_threshold / mention_window_threshold mention spam
 nuke_threshold / nuke_window                anti-nuke sensitivity
+verification_gate / verification_channel_id react-to-verify gate for new members
 banned_name_patterns / name_filter_action   AutoMod-style username filter
 trusted_roles / allowlist_users / allowlist_bots  exemptions
 ```
@@ -166,7 +169,7 @@ python -m coverage run --source=antiraid -m unittest discover -s tests
 python -m coverage report -m
 ```
 
-118 tests cover join detection (incl. homoglyph/leet username folding), the
+121 tests cover join detection (incl. homoglyph/leet username folding), the
 AutoMod-style username filter, message spam, the warn→slowmode→timeout→
 quarantine escalation ladder, anti-nuke, lifecycle, config & incident
 persistence (incl. lockdown restore across restarts), bulk-ban coalescing, the

@@ -33,6 +33,7 @@ class ActionType(Enum):
     KICK_MEMBER = "kick_member"
     TIMEOUT_MEMBER = "timeout_member"
     QUARANTINE_MEMBER = "quarantine_member"  # strip to a locked "unverified" role
+    GATE_MEMBER = "gate_member"              # verification gate: assign unverified role
     DELETE_MESSAGE = "delete_message"
     SET_SLOWMODE = "set_slowmode"  # channel-level rate limit (target = channel id)
     WARN_MEMBER = "warn_member"     # post a public warning in the channel
