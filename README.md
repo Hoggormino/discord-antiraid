@@ -1,5 +1,8 @@
 # Discord Anti-Raid Bot
 
+[![tests](https://github.com/Hoggormino/discord-antiraid/actions/workflows/tests.yml/badge.svg)](https://github.com/Hoggormino/discord-antiraid/actions/workflows/tests.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A secure, thoroughly-tested anti-raid bot for Discord. Tests run on every push
 via GitHub Actions (`.github/workflows/tests.yml`).
 
@@ -175,3 +178,9 @@ test suite (`tests/test_integration_env.py`).
 - Detection thresholds are heuristics — tune them per community and prefer
   `raid_action = quarantine` or `alert` while calibrating.
 ```
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE).
