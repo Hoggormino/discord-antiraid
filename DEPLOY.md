@@ -22,6 +22,47 @@ for buildpack hosts.
    `ANTIRAID_INCIDENTS_PATH=/data/incidents.json`. Without a volume the per-guild
    config and active-lockdown state reset on each redeploy (usually fine).
 
+## Free forever: Oracle Cloud Always Free (best $0 option)
+
+Oracle Cloud's **Always Free** tier gives a genuinely free-forever VM (Ampere
+ARM, generous specs) that runs this image 24/7. Signup needs a credit card for
+identity verification only — Always Free resources are never charged.
+
+1. Create an **Always Free** account at <https://www.oracle.com/cloud/free/>,
+   launch a VM (Ubuntu, **Ampere A1** shape, within the Always Free allowance),
+   allow SSH, and connect to it.
+2. Install Docker, clone, and run the container — the token lives in a
+   locked-down file, never in shell history:
+
+```bash
+sudo apt update && sudo apt install -y docker.io git
+sudo systemctl enable --now docker
+git clone https://github.com/Hoggormino/discord-antiraid.git && cd discord-antiraid
+
+echo "DISCORD_TOKEN=your-freshly-reset-token" > antiraid.env && chmod 600 antiraid.env
+
+sudo docker build -t antiraid .
+sudo docker run -d --name antiraid --restart=unless-stopped \
+  --env-file antiraid.env \
+  -e ANTIRAID_CONFIG_PATH=/data/guild_configs.json \
+  -e ANTIRAID_INCIDENTS_PATH=/data/incidents.json \
+  -v /opt/antiraid-data:/data \
+  antiraid
+
+sudo docker logs -f antiraid    # look for "Logged in as AntiRaid Bot#... (guilds=N)"
+```
+
+**Update later:**
+```bash
+cd discord-antiraid && git pull
+sudo docker build -t antiraid .
+sudo docker rm -f antiraid
+# then re-run the `docker run ...` command above
+```
+The `/opt/antiraid-data` host folder is the persistent `/data` volume — per-guild
+config and active-lockdown state survive restarts and rebuilds. `--restart=unless-stopped`
+brings the bot back automatically after a crash or VM reboot.
+
 ## Alternative: Fly.io (small free allowance, CLI/Docker)
 
 ```bash
