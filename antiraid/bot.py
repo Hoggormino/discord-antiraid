@@ -84,7 +84,8 @@ class AntiRaidBot(commands.AutoShardedBot):
         intents.members = True          # member joins
         intents.message_content = True  # spam/link content
         intents.moderation = True       # audit-log entries (anti-nuke)
-        super().__init__(command_prefix="!ar ", intents=intents, **kwargs)
+        super().__init__(command_prefix="!ar ", intents=intents,
+                         help_command=None, **kwargs)
         self.store = store
         self.engine = AntiRaidEngine(config_provider=store.get)
         self.incidents = incidents if incidents is not None else IncidentStore()
@@ -570,6 +571,28 @@ def register_commands(bot: AntiRaidBot) -> None:
         cfg.trusted_roles = frozenset(cfg.trusted_roles | {role.id})
         bot.store.set(cfg)
         await ctx.send(f"✅ `{role.name}` is now trusted (exempt from enforcement).")
+
+    @bot.command(name="release")
+    @admin()
+    async def release(ctx: "commands.Context", member: "discord.Member"):
+        role = discord.utils.get(ctx.guild.roles, name=QUARANTINE_ROLE_NAME)
+        if role is not None and role in member.roles:
+            await member.remove_roles(role, reason=f"Released by {ctx.author}")
+            await ctx.send(f"✅ Released {member.mention} from quarantine.")
+        else:
+            await ctx.send(f"{member.mention} isn't quarantined.")
+
+    @bot.command(name="help")
+    @admin()
+    async def help_cmd(ctx: "commands.Context"):
+        await ctx.send(
+            "**Anti-Raid** (prefix `!ar `, needs Manage Server):\n"
+            "`status` · `enable` / `disable` · `lockdown` / `unlock`\n"
+            "`trust @role` — exempt a role · `release @user` — undo a quarantine\n"
+            "`blockname <regex>` — ban a username pattern on join\n"
+            "`set <key> <value>` — tune anything, e.g. `set raid_action ban`, "
+            "`set spam_warnings 1`, `set escalating_spam false`"
+        )
 
     @bot.command(name="blockname")
     @admin()

@@ -126,7 +126,9 @@ Prefix `!ar ` (requires **Manage Server**):
 | `!ar enable` / `!ar disable` | Toggle protection |
 | `!ar lockdown` / `!ar unlock` | Manual lockdown / restore |
 | `!ar trust @role` | Mark a role exempt from enforcement |
+| `!ar release @user` | Undo a quarantine (release a false-positive) |
 | `!ar blockname <regex>` | Add a banned-username pattern (actioned on join) |
+| `!ar help` | List all commands |
 | `!ar set <key> <value>` | Tune any threshold (e.g. `!ar set join_rate_threshold 10`, `!ar set raid_action kick`, `!ar set name_filter_action ban`) |
 
 ## Configuration reference
