@@ -1,0 +1,5 @@
+# Runtime dependency for the live bot adapter (antiraid/bot.py).
+# The detection engine (antiraid/engine.py) and the entire test suite
+# are PURE standard library and do NOT need this installed.
+discord.py>=2.3,<3.0
+python-dotenv>=1.0
